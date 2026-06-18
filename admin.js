@@ -16,6 +16,8 @@ const db = getFirestore(app);
 document.addEventListener('DOMContentLoaded', () => {
     const ordersList = document.getElementById('admin-orders-list');
     let knownOrders = new Set();
+    let watchId = null;
+    let currentTrackingOrderId = null;
 
     if ('Notification' in window && Notification.permission === 'default') {
         Notification.requestPermission();
@@ -115,7 +117,32 @@ document.addEventListener('DOMContentLoaded', () => {
             await updateDoc(orderRef, {
                 status: newStatus
             });
-            // Firebase onSnapshot will automatically re-render the UI and notify the user
+            
+            // Location Tracking Logic
+            if (newStatus === 'otw') {
+                if (navigator.geolocation) {
+                    currentTrackingOrderId = orderId;
+                    watchId = navigator.geolocation.watchPosition(async (position) => {
+                        const { latitude, longitude } = position.coords;
+                        try {
+                            await updateDoc(doc(db, "orders", currentTrackingOrderId), {
+                                driverLocation: { lat: latitude, lng: longitude }
+                            });
+                        } catch(e) { console.error("Error updating location", e); }
+                    }, (error) => {
+                        console.error("GPS Error", error);
+                        // Prevent alert spam on every watch failure, log is enough after first prompt
+                    }, { enableHighAccuracy: true });
+                } else {
+                    alert("Browser Anda tidak mendukung fitur GPS.");
+                }
+            } else if (newStatus === 'completed') {
+                if (watchId !== null && currentTrackingOrderId === orderId) {
+                    navigator.geolocation.clearWatch(watchId);
+                    watchId = null;
+                    currentTrackingOrderId = null;
+                }
+            }
         } catch (error) {
             console.error("Error updating status: ", error);
             alert("Gagal mengubah status. Periksa koneksi Anda.");

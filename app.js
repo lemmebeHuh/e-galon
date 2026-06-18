@@ -26,6 +26,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let quantity = 1;
     let previousOrders = {};
+    let maps = {};
+    let markers = {};
 
     // Request Notification permission immediately on load
     if ('Notification' in window && Notification.permission === 'default') {
@@ -114,8 +116,55 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="order-address">📍 ${order.address}</div>
                 </div>
                 <div><span class="badge ${badgeClass}">${statusText}</span></div>
+                ${order.status === 'otw' ? `
+                <div class="map-wrapper" id="map-wrapper-${id}">
+                    <div class="live-indicator"><div class="live-dot"></div> LIVE</div>
+                    <div id="map-${id}" class="map-container"></div>
+                </div>
+                ` : ''}
             `;
             historyList.appendChild(el);
+        });
+
+        // Initialize or update maps
+        snapshot.forEach((doc) => {
+            const order = doc.data();
+            const id = doc.id;
+            
+            if (order.status === 'otw' && order.driverLocation) {
+                const lat = order.driverLocation.lat;
+                const lng = order.driverLocation.lng;
+                const mapId = `map-${id}`;
+                
+                // Ensure the DOM element exists before initializing map
+                const mapContainer = document.getElementById(mapId);
+                if (mapContainer) {
+                    if (!maps[id]) {
+                        maps[id] = L.map(mapId).setView([lat, lng], 16);
+                        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                            attribution: '&copy; OpenStreetMap',
+                            maxZoom: 19
+                        }).addTo(maps[id]);
+                        
+                        // Custom driver icon
+                        const driverIcon = L.icon({
+                            iconUrl: './assets/icon-192.png',
+                            iconSize: [32, 32],
+                            iconAnchor: [16, 16]
+                        });
+                        markers[id] = L.marker([lat, lng], {icon: driverIcon}).addTo(maps[id]);
+                    } else {
+                        // Update existing map and marker smoothly
+                        markers[id].setLatLng([lat, lng]);
+                        maps[id].panTo([lat, lng]);
+                    }
+                }
+            } else if (order.status !== 'otw' && maps[id]) {
+                // Cleanup map if status is no longer otw
+                maps[id].remove();
+                delete maps[id];
+                delete markers[id];
+            }
         });
     });
 
