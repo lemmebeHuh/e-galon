@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pesan Galon</title>
+    <meta name="description" content="Aplikasi pemesanan air galon online yang cepat dan mudah.">
+    <link rel="manifest" href="./manifest.json">
+    <meta name="theme-color" content="#0d6efd">
+    <link rel="apple-touch-icon" href="./assets/icon-192.png">
+    <link rel="stylesheet" href="./style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <header class="glass-header">
+        <h1>💧 Pesan Galon</h1>
+        <p>Air segar langsung ke rumah Anda.</p>
+    </header>
+
+    <main class="container">
+        <!-- FORM PESANAN -->
+        <section class="product-card glass-card" id="product-section">
+            <div class="product-image">
+                <div class="gallon-illustration">💧</div>
+            </div>
+            <div class="product-details">
+                <h2>Galon Air Mineral</h2>
+                <p class="price">Rp 20.000 / galon</p>
+                
+                <div class="input-group">
+                    <label for="address">Alamat Pengiriman:</label>
+                    <textarea id="address" rows="2" placeholder="Contoh: Jl. Sudirman No 1..." required></textarea>
+                </div>
+
+                <div class="quantity-control">
+                    <button id="btn-decrease" aria-label="Kurangi jumlah">-</button>
+                    <span id="quantity">1</span>
+                    <button id="btn-increase" aria-label="Tambah jumlah">+</button>
+                </div>
+                <button id="btn-order" class="btn-primary">Pesan Sekarang</button>
+            </div>
+        </section>
+
+        <!-- STATUS SUCCESS MESSAGE -->
+        <section class="status-message hidden" id="status-message">
+            <div class="glass-card success-card">
+                <h3>✅ Pesanan Masuk Antrean!</h3>
+                <p>Galon segera diproses admin. Pantau status di Riwayat Pesanan.</p>
+                <button id="btn-order-again" class="btn-secondary">Pesan Lagi</button>
+            </div>
+        </section>
+
+        <!-- RIWAYAT PESANAN -->
+        <section class="history-section glass-card" style="margin-top: 2rem;">
+            <h2>Riwayat Pesanan</h2>
+            <div id="history-list" class="history-list">
+                <p class="empty-state">Belum ada pesanan.</p>
+            </div>
+        </section>
+    </main>
+
+    <script src="./app.js"></script>
+</body>
+</html>
