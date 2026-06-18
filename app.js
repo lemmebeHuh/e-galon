@@ -1,3 +1,18 @@
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCc099wGVBrdUiWwR7lHiyRu0gBwXK2iAg",
+  authDomain: "galonapp-4b039.firebaseapp.com",
+  projectId: "galonapp-4b039",
+  storageBucket: "galonapp-4b039.firebasestorage.app",
+  messagingSenderId: "79940351595",
+  appId: "1:79940351595:web:1ea56df45fc3cde461232e"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
 document.addEventListener('DOMContentLoaded', () => {
     const quantityEl = document.getElementById('quantity');
     const addressEl = document.getElementById('address');
@@ -10,67 +25,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const historyList = document.getElementById('history-list');
 
     let quantity = 1;
-    let channel;
-
-    // Load History
-    function loadHistory() {
-        const orders = JSON.parse(localStorage.getItem('galon_orders')) || [];
-        historyList.innerHTML = '';
-        
-        if (orders.length === 0) {
-            historyList.innerHTML = '<p class="empty-state">Belum ada pesanan.</p>';
-            return;
-        }
-
-        // Sort by newest
-        orders.sort((a,b) => b.timestamp - a.timestamp).forEach(order => {
-            const el = document.createElement('div');
-            el.className = 'order-item';
-            
-            let badgeClass = 'pending';
-            let statusText = 'Menunggu';
-            if (order.status === 'otw') { badgeClass = 'otw'; statusText = 'Sedang Dikirim'; }
-            else if (order.status === 'completed') { badgeClass = 'completed'; statusText = 'Selesai'; }
-
-            el.innerHTML = `
-                <div class="order-header">
-                    <span class="order-id">#${order.id.substring(0,8)}</span>
-                    <span class="order-date">${new Date(order.timestamp).toLocaleString('id-ID')}</span>
-                </div>
-                <div class="order-details">
-                    <div><strong>${order.quantity} Galon</strong></div>
-                    <div class="order-address">📍 ${order.address}</div>
-                </div>
-                <div><span class="badge ${badgeClass}">${statusText}</span></div>
-            `;
-            historyList.appendChild(el);
-        });
-    }
-
-    loadHistory();
-
-    // BroadcastChannel Logic
-    if ('BroadcastChannel' in window) {
-        channel = new BroadcastChannel('galon-notif');
-        channel.onmessage = (event) => {
-            if (event.data && event.data.type === 'status-update') {
-                // Refresh UI
-                loadHistory();
-                
-                // Show Push Notification
-                let title = 'Update Pesanan';
-                let body = 'Status pesanan Anda telah diperbarui.';
-                if (event.data.status === 'otw') {
-                    title = 'Pesanan Dikirim! 🚚';
-                    body = `Pesanan galon Anda sedang dalam perjalanan menuju ${event.data.address}.`;
-                } else if (event.data.status === 'completed') {
-                    title = 'Pesanan Tiba! ✅';
-                    body = `Galon Anda telah sampai di lokasi. Terima kasih!`;
-                }
-                showNotification(title, body);
-            }
-        };
-    }
+    let previousOrders = {};
 
     // Register SW
     if ('serviceWorker' in navigator) {
@@ -79,7 +34,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Notification Permission
     function requestNotificationPermission() {
         if ('Notification' in window && Notification.permission === 'default') {
             Notification.requestPermission();
@@ -91,11 +45,73 @@ document.addEventListener('DOMContentLoaded', () => {
             navigator.serviceWorker.ready.then(reg => {
                 reg.showNotification(title, { body: body, icon: './assets/icon-192.png' });
             });
+        } else if ('Notification' in window && Notification.permission === 'granted') {
+            new Notification(title, { body: body, icon: './assets/icon-192.png' });
         }
     }
 
+    // Listen to Firebase Realtime Updates
+    const q = query(collection(db, "orders"), orderBy("timestamp", "desc"));
+    onSnapshot(q, (snapshot) => {
+        historyList.innerHTML = '';
+        
+        if (snapshot.empty) {
+            historyList.innerHTML = '<p class="empty-state">Belum ada pesanan.</p>';
+            return;
+        }
+
+        snapshot.forEach((doc) => {
+            const order = doc.data();
+            const id = doc.id;
+            
+            // Trigger Notification if status changed
+            if (previousOrders[id] && previousOrders[id] !== order.status) {
+                let title = 'Update Pesanan';
+                let body = 'Status pesanan Anda telah diperbarui.';
+                if (order.status === 'otw') {
+                    title = 'Pesanan Dikirim! 🚚';
+                    body = `Pesanan galon Anda sedang dalam perjalanan menuju ${order.address}.`;
+                } else if (order.status === 'completed') {
+                    title = 'Pesanan Tiba! ✅';
+                    body = `Galon Anda telah sampai di lokasi. Terima kasih!`;
+                }
+                showNotification(title, body);
+            }
+            // Save current status for future comparison
+            previousOrders[id] = order.status;
+
+            // Render History Item
+            const el = document.createElement('div');
+            el.className = 'order-item';
+            
+            let badgeClass = 'pending';
+            let statusText = 'Menunggu';
+            if (order.status === 'otw') { badgeClass = 'otw'; statusText = 'Sedang Dikirim'; }
+            else if (order.status === 'completed') { badgeClass = 'completed'; statusText = 'Selesai'; }
+
+            // Handle timestamp format (Firebase Timestamp or fallback)
+            let dateStr = 'Baru Saja';
+            if (order.timestamp) {
+                dateStr = order.timestamp.toDate ? order.timestamp.toDate().toLocaleString('id-ID') : new Date(order.timestamp).toLocaleString('id-ID');
+            }
+
+            el.innerHTML = `
+                <div class="order-header">
+                    <span class="order-id">#${id.substring(0,8)}</span>
+                    <span class="order-date">${dateStr}</span>
+                </div>
+                <div class="order-details">
+                    <div><strong>${order.quantity} Galon</strong></div>
+                    <div class="order-address">📍 ${order.address}</div>
+                </div>
+                <div><span class="badge ${badgeClass}">${statusText}</span></div>
+            `;
+            historyList.appendChild(el);
+        });
+    });
+
     // Button Listeners
-    btnOrder.addEventListener('click', () => {
+    btnOrder.addEventListener('click', async () => {
         const address = addressEl.value.trim();
         if (!address) {
             alert('Harap isi alamat pengiriman!');
@@ -108,38 +124,28 @@ document.addEventListener('DOMContentLoaded', () => {
         btnOrder.textContent = 'Memproses...';
         btnOrder.disabled = true;
 
-        setTimeout(() => {
-            const newOrder = {
-                id: Date.now().toString() + Math.floor(Math.random()*1000),
+        try {
+            await addDoc(collection(db, "orders"), {
                 quantity: quantity,
                 address: address,
                 status: 'pending',
-                timestamp: Date.now()
-            };
+                timestamp: serverTimestamp()
+            });
 
-            // Save to DB (localStorage)
-            const orders = JSON.parse(localStorage.getItem('galon_orders')) || [];
-            orders.push(newOrder);
-            localStorage.setItem('galon_orders', JSON.stringify(orders));
-
-            // Update UI
             productSection.classList.add('hidden');
             statusMessage.classList.remove('hidden');
-            btnOrder.textContent = 'Pesan Sekarang';
-            btnOrder.disabled = false;
             addressEl.value = '';
             quantity = 1;
             quantityEl.textContent = quantity;
 
-            loadHistory();
-
-            // Broadcast to Admin
-            if (channel) {
-                channel.postMessage({ type: 'new-order', order: newOrder });
-            }
-
             showNotification('Pesanan Berhasil! 🎉', 'Pesanan masuk ke antrean dan segera diproses admin.');
-        }, 1000);
+        } catch (e) {
+            console.error("Error adding document: ", e);
+            alert("Gagal memproses pesanan. Periksa koneksi internet Anda.");
+        } finally {
+            btnOrder.textContent = 'Pesan Sekarang';
+            btnOrder.disabled = false;
+        }
     });
 
     btnIncrease.addEventListener('click', () => { if (quantity < 10) { quantity++; quantityEl.textContent = quantity; } });
