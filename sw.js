@@ -1,4 +1,4 @@
-const CACHE_NAME = 'galon-app-cache-v4';
+const CACHE_NAME = 'galon-app-cache-v5';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -69,5 +69,24 @@ self.addEventListener('push', event => {
 
   event.waitUntil(
     self.registration.showNotification('Pesan Galon Update', options)
+  );
+});
+
+self.addEventListener('notificationclick', event => {
+  event.notification.close();
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(windowClients => {
+      // Check if there is already a window/tab open
+      for (let i = 0; i < windowClients.length; i++) {
+        const client = windowClients[i];
+        if (client.url.includes('/') && 'focus' in client) {
+          return client.focus();
+        }
+      }
+      // If not, open the target URL
+      if (clients.openWindow) {
+        return clients.openWindow('/');
+      }
+    })
   );
 });

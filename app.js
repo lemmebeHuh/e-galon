@@ -27,6 +27,15 @@ document.addEventListener('DOMContentLoaded', () => {
     let quantity = 1;
     let previousOrders = {};
 
+    // Request Notification permission immediately on load
+    if ('Notification' in window && Notification.permission === 'default') {
+        // Some browsers may require user interaction to show this prompt.
+        // If this silently fails, it will be caught again when they click order.
+        Notification.requestPermission().then(permission => {
+            console.log('Notification permission:', permission);
+        });
+    }
+
     // Register SW
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
